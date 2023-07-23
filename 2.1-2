@@ -10,77 +10,76 @@ class ECDSAWrap:
         public_key = private_key.public_key()
         return private_key, public_key
 
-    def sign_message(self, private_key, message):
-        hashed_message = self.hash_message(message)
-        signature = private_key.sign(hashed_message, ec.ECDSA(utils.Prehashed(hashes.SHA256())))
-        return signature
+    def add_points(self, point1, point2):
+        return self.curve.generator + point1 + point2
 
-    def verify_signature(self, public_key, message, signature):
-        hashed_message = self.hash_message(message)
-        try:
-            public_key.verify(signature, hashed_message, ec.ECDSA(utils.Prehashed(hashes.SHA256())))
-            return True
-        except:
-            return False
+    def subtract_points(self, point1, point2):
+        return self.curve.generator + point1 - point2
 
-    def hash_message(self, message):
-        digest = hashes.Hash(hashes.SHA256())
-        digest.update(message.encode())
-        return digest.finalize()
+    def serialize_private_key(self, private_key):
+        return private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        ).decode()
 
-def serialize_private_key(private_key):
-    return private_key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption()
-    ).decode()
+    def deserialize_private_key(self, serialized_private_key):
+        return serialization.load_pem_private_key(
+            serialized_private_key.encode(),
+            password=None
+        )
 
-def deserialize_private_key(curve, serialized_private_key):
-    return serialization.load_pem_private_key(
-        serialized_private_key.encode(),
-        password=None
-    )
+    def serialize_public_key(self, public_key):
+        return public_key.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        ).decode()
 
-def serialize_public_key(public_key):
-    return public_key.public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo
-    ).decode()
+    def deserialize_public_key(self, serialized_public_key):
+        return serialization.load_pem_public_key(
+            serialized_public_key.encode()
+        )
 
-def deserialize_public_key(curve, serialized_public_key):
-    return serialization.load_pem_public_key(
-        serialized_public_key.encode()
-    )
+    def serialize_signature(self, signature):
+        return signature.hex()
 
-def serialize_signature(signature):
-    return signature.hex()
+    def deserialize_signature(self, serialized_signature):
+        return bytes.fromhex(serialized_signature)
 
-def deserialize_signature(serialized_signature):
-    return bytes.fromhex(serialized_signature)
+
+# Функція підпису повідомлення
+def sign_message(private_key, message):
+    hashed_message = hashes.Hash(hashes.SHA256())
+    hashed_message.update(message.encode())
+    digest = hashed_message.finalize()
+    signature = private_key.sign(digest, ec.ECDSA(utils.Prehashed(hashes.SHA256())))
+    return signature
+
+# Функція перевірки підпису
+def verify_signature(public_key, message, signature):
+    hashed_message = hashes.Hash(hashes.SHA256())
+    hashed_message.update(message.encode())
+    digest = hashed_message.finalize()
+    try:
+        public_key.verify(signature, digest, ec.ECDSA(utils.Prehashed(hashes.SHA256())))
+        return True
+    except:
+        return False
+
 
 # Використання обгортки ECDSAWrap
-
 curve = ec.SECP256R1()
 ecdsa_wrap = ECDSAWrap(curve)
 private_key, public_key = ecdsa_wrap.generate_keypair()
+
+# Використання підпису та перевірки повідомлення
 message = "Hello, world!"
-signature = ecdsa_wrap.sign_message(private_key, message)
-is_valid = ecdsa_wrap.verify_signature(public_key, message, signature)
+signature = sign_message(private_key, message)
+is_valid = verify_signature(public_key, message, signature)
 
-serialized_private_key = serialize_private_key(private_key)
-deserialized_private_key = deserialize_private_key(curve, serialized_private_key)
-
-serialized_public_key = serialize_public_key(public_key)
-deserialized_public_key = deserialize_public_key(curve, serialized_public_key)
-
-serialized_signature = serialize_signature(signature)
-deserialized_signature = deserialize_signature(serialized_signature)
-
-print("Private Key:", serialized_private_key)
-print("Deserialized Private Key:", deserialized_private_key)
-print("Public Key:", serialized_public_key)
-print("Deserialized Public Key:", deserialized_public_key)
+# Відобразимо результати
+print("Private Key:", ecdsa_wrap.serialize_private_key(private_key))
+print("Public Key:", ecdsa_wrap.serialize_public_key(public_key))
 print("Message:", message)
-print("Signature:", serialized_signature)
-print("Deserialized Signature:", deserialized_signature)
+print("Signature:", ecdsa_wrap.serialize_signature(signature))
 print("Is Valid Signature?", is_valid)
